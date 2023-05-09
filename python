@@ -1,0 +1,40 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import datetime as dt
+from sklearn.linear_model import LinearRegression
+from scipy.stats import f_oneway
+purchases = pd.read_csv( 'C://Users/daniy/Documents/P5D/purchases.csv')
+users = pd.read_csv ('C://Users/daniy/Documents/P5D/users.csv')
+purchases = purchases.drop_duplicates(subset=['transaction_id'])
+abtest_distribution = pd.read_csv ( 'C://Users/daniy/Documents/P5D/abtest_distribution.csv')
+abtest_user_info = pd.merge(abtest_distribution,users, left_on = 'user_id', right_on = 'user_id', how = 'left')
+purchasesusers = pd.merge(purchases, abtest_user_info, left_on = 'user_id', right_on = 'user_id', how= 'left')
+purchasesusers['payment_date'] = pd.to_datetime(purchasesusers['payment_date'])
+purchasesusers['payment_date'] = purchasesusers['payment_date'].dt.strftime('%d/%m/%Y')
+purchases_by_date_by_product = purchasesusers.groupby(['payment_date','abtest_group','product']).agg({'value':'sum','transaction_id':'count'}).reset_index()
+purchases_by_date_by_product['ARPT']= purchases_by_date_by_product['value']/purchases_by_date_by_product['transaction_id']
+purchases['payment_date'] = pd.to_datetime(purchases['payment_date'])
+x = purchases['payment_date']
+y = purchases['value']
+plt.scatter(x,y, alpha = 0.1)
+#analysis by product
+p2 = purchases_by_date_by_product.loc[purchases_by_date_by_product['product'] == 'p2']
+p2old = p2.loc[p2['abtest_group'] == 'old']
+p2oldsum = p2old[['value','transaction_id']].sum()
+p2old['ARPT'] = pd.to_numeric(p2old['ARPT']) 
+p2after = p2.loc[p2['abtest_group'] == 'paywall_after_demo']
+p2after['ARPT'] = pd.to_numeric(p2after['ARPT']) 
+p2before = p2.loc[p2['abtest_group'] == 'paywall_before_demo']
+p2before['ARPT'] = pd.to_numeric(p2before['ARPT']) 
+f_stat, p_val = f_oneway(p2old['ARPT'], p2after['ARPT'], p2before['ARPT'])
+print(f"F-statistic: {f_stat:.4f}")
+print(f"p-value: {p_val:.4f}")
+f_stat, p_val = f_oneway(p2old['transaction_id'], p2after['transaction_id'], p2before['transaction_id'])
+print(f"F-statistic: {f_stat:.4f}")
+print(f"p-value: {p_val:.4f}")
+f_stat, p_val = f_oneway(p2old['value'], p2after['value'], p2before['value'])
+print(f"F-statistic: {f_stat:.4f}")
+print(f"p-value: {p_val:.4f}")
+p2total = p2.groupby(['abtest_group']).agg({'value':'sum','transaction_id':'sum'}).reset_index()
+p2total['ARPT'] = p2total['value']/p2total['transaction_id']
